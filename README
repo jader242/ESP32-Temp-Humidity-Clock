@@ -13,3 +13,5 @@ Future goals:
 -reduce screen flicker
 -implement multiple screens and a way to switch between them (ie m5stack dual button unit or scroll unit)
 -add a buzzer for an alarm clock
+
+![ESP32 Temp/Humidity Clock Display](/assets/display.jpeg)
