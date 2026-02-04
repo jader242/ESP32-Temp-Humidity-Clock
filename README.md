@@ -21,3 +21,7 @@ Just a simple clock that displays temperature and humidity, syncs ntp, and also 
 - Change timezone for NTP if necessary (this line is also commented)
 - Have PlatformIO VS Code extension or CLI
 - 'pio run -t upload'
+
+**Wiring Diagram**
+
+![Wiring diagram to hook up M5Stack Unit OLED screen and DHT11 sensor to the ESP32-Wroom](/assets/wiring_diagram.png)
