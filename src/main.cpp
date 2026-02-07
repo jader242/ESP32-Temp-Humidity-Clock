@@ -115,14 +115,14 @@ void loop() {
     Serial.println("Updated Time");
   }
   if (!isnan(humidity) && !isnan(temperatureF)) {
-    if (fabs(correctedTemp - lastTemperatureF) > 0.5) { // only update when temp fluctuates more than 0.5 degrees to avoid over reading from the dht
+    if (fabs(correctedTemp - lastTemperatureF) > 0.5) { // this totally didn't work like i meant it to, it still reads the dht each loop. gonna have to refactor this with some new logic
       lastTemperatureF = correctedTemp;
       oled.fillRect(0, (time_yoffset + 10), oled.width(), oled.fontHeight());
       oled.drawString(tempStr, tempX, (time_yoffset + 10));
       oled.display();
       Serial.println("Updated Temp");
     }
-    if (fabs(humidity - lastHumidity) > 1.0) { // same thing here but if humidity fluctuates more than 1%
+    if (fabs(humidity - lastHumidity) > 1.0) { // also doesn't work like i though lolol
       lastHumidity = humidity;
       oled.fillRect(0, ((time_yoffset + 10) + (oled.fontHeight() + 5)), oled.width(), oled.fontHeight());
       oled.drawString(humidityStr, humX, ((time_yoffset + 10) + oled.fontHeight() + 5));
