@@ -1,133 +1,101 @@
 #include <Arduino.h>
-#include <M5UnitOLED.h>
-#include <M5GFX.h>
 #include <WiFi.h>
-#include <WiFiUdp.h>
-#include <NTPClient.h>
+#include <time.h>
+#include <M5GFX.h>
+#include <M5UnitOLED.h>
 #include <DHT.h>
 
-#define DHTPIN 33 // pin 33
-#define DHTTYPE DHT11 // sensor type
+#define DHTPIN 33 // pin 33 for DHT11 sensor data pin
+#define DHTTYPE DHT11 // sensor type DHT11
 
-M5UnitOLED oled(27, 26, 400000); // use pins 26 and 27 for i2c sda/scl, 400kHz (mandatory to put this)
+M5UnitOLED oled(27, 26, 400000); // pins 27/26 for i2c
 
-const char* ssid = "YOUR_WIFI_SSID"; // change this to your wifi ssid
-const char* password = "YOUR_WIFI_PASSWORD"; // change this to your wifi password
-WiFiUDP ntpUDP;
-
-NTPClient timeClient(ntpUDP, "pool.ntp.org", -25200, 60000); //change second arg for your timezone
+const char* ssid = "YOUR_SSID_HERE"; // enter your wifi ssid here
+const char* password = "YOUR_PASSWORD_HERE"; // enter your wifi password here
+const int8_t tzOffset = 0; // enter your UTC timezone offset here
 DHT dht(DHTPIN, DHTTYPE);
-int firstRun = 0;
+
+void dhtloop() {
+        float humidity = dht.readHumidity();
+        float tempF = dht.readTemperature(true); // true for F
+        float correctedTemp = tempF - (tempF * 0.05); // subtract 5% to correct error, may vary sensor to sensor
+        char tempStr[20];
+        char humStr[20];
+        if (!isnan(humidity) && !isnan(tempF)) {
+                snprintf(tempStr, sizeof(tempStr), "%.1f F", correctedTemp);
+                snprintf(humStr, sizeof(humStr), "%.0f%%", humidity);
+                oled.fillRect(0, 21, oled.width(), 43); // 21 comes from time text starting at a y pos of 5, plus 16 pixels for font size - 43 is the remainder of the screen (64-21)
+                oled.drawString(tempStr, ((oled.width() - oled.textWidth(tempStr)) / 2), (oled.fontHeight() + 10));
+                oled.drawString(humStr, ((oled.width() - oled.textWidth(humStr)) / 2), ((oled.fontHeight() + 10) + oled.fontHeight() + 5));
+                oled.display();
+                Serial.println("Updated temp/humidity");
+        }else {
+                snprintf(tempStr, sizeof(tempStr), "Error");
+                snprintf(humStr, sizeof(humStr), "Error");
+                oled.fillRect(0, 21, oled.width(), 43); // same number reasoning as above
+                oled.drawString(tempStr, ((oled.width() - oled.textWidth(tempStr)) / 2), (oled.fontHeight() + 10));
+                oled.drawString(humStr, ((oled.width() - oled.textWidth(humStr)) / 2), ((oled.fontHeight() + 10) + oled.fontHeight() + 5));
+                oled.display();
+                Serial.println("DHT11 read error");
+        }
+}
+
+void timeloop() {
+        static bool firstRun = true;
+        struct tm t;
+        if (!getLocalTime(&t)) {
+                oled.drawString("No time", 5, (oled.textWidth("No time")));
+                oled.display();
+                return;
+        }
+        int hours = t.tm_hour;
+        static int minutes;
+        bool isPM = hours >= 12;
+        int displayHour = hours % 12;
+        if (displayHour == 0) {
+                displayHour = 12;
+        }
+        if (firstRun || (minutes != t.tm_min)) {
+                minutes = t.tm_min;
+                char timeStr[12];
+                snprintf(timeStr, sizeof(timeStr), "%02d:%02d %s", displayHour, minutes, isPM ? "PM" : "AM");
+                int centerX = ((oled.width() / 2) - (oled.textWidth(timeStr) / 2));
+                oled.fillRect(0, 5, oled.width(), oled.fontHeight());
+                oled.drawString(timeStr, centerX, 5);
+                oled.display();
+                Serial.println("Updated time");
+                if (firstRun) {
+                        firstRun = false;
+                }
+        }
+}
 
 void setup() {
-  Serial.begin(115200);
-  delay(1000);
-  WiFi.begin(ssid, password);
-  dht.begin();
-  Serial.println("DHT11 Initialized");
-  Serial.println("Connecting to WiFi");
-  oled.setTextSize(2);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(250);
-    Serial.print("...");
-  }
-  Serial.println("Connected");
-  timeClient.begin();
-  oled.init();
-  oled.setRotation(1);
-  oled.fillScreen(0);
-  const char* welcome = "Welcome :)";
-  oled.drawString(welcome, oled.width() / 2 - oled.textWidth(welcome) / 2, oled.height() / 2 - oled.fontHeight() / 2);
-  delay(2000);
-  oled.fillScreen(0);
+        Serial.begin(115200);
+        delay(1000);
+        WiFi.begin(ssid, password);
+        dht.begin();
+        Serial.println("DHT11 initialized");
+        Serial.println("Connecting to WiFi");
+        oled.setTextSize(2);
+        while (WiFi.status() != WL_CONNECTED) {
+                delay(250);
+                Serial.print("...");
+        }
+        Serial.println("Connected!");
+        configTime(tzOffset * 3600, 0, "pool.ntp.org", "time.nist.gov");
+        oled.init();
+        oled.setRotation(1);
+        oled.fillScreen(0);
 }
 
 void loop() {
-  timeClient.update();
-  static int lastMinutes = -1;
-  int hours = timeClient.getHours();
-  int minutes = timeClient.getMinutes();
-  char timeStr[12];
-  if (hours == 12) {
-    sprintf(timeStr, "%02d:%02d PM", hours, minutes);
-  }else if (hours == 0) {
-    sprintf(timeStr, "%02d:%02d AM", (hours + 12), minutes);
-  }else {
-    if (hours < 12) {
-      sprintf(timeStr, "%02d:%02d AM", hours, minutes);
-    }else {
-      sprintf(timeStr, "%02d:%02d PM", (hours - 12), minutes);
-    }
-  }
-  static float lastTemperatureF = NAN;
-  static float lastHumidity = NAN;
-  float humidity = dht.readHumidity();
-  float temperatureF = dht.readTemperature(true); //true for F
-  float correctedTemp = temperatureF - (temperatureF * 0.05); // my sensor reads a bit high, YMMV
-  oled.setTextSize(2);
-  int time_yoffset = oled.fontHeight();
-  char tempStr[20];
-  char humidityStr[20];
-  if (!isnan(humidity) && !isnan(temperatureF)) { // check if humidity and temp are numbers
-    sprintf(tempStr, "%.1f F", correctedTemp);  // one decimal place with 'F', subtract 5% for accuracy
-    sprintf(humidityStr, "%.0f%%", humidity); // no decimal place with % sign
-  }else {
-    sprintf(tempStr, "Temp Error");
-    sprintf(humidityStr, "Humidity Error");
-  }
-  int timeX = (oled.width() - oled.textWidth(timeStr)) / 2;
-  int tempX = (oled.width() - oled.textWidth(tempStr)) / 2;
-  int humX = (oled.width() - oled.textWidth(humidityStr)) / 2;
-  if (hours >= 6 && hours < 21) { // need to change this in the future so its not writing to i2c bus every loop
-    oled.setBrightness(128);
-  }else {
-    oled.setBrightness(64);
-  }
-  if (firstRun == 0) {
-    oled.drawString(timeStr, timeX, 5);
-    oled.drawString(tempStr, tempX, (time_yoffset + 10));
-    oled.drawString(humidityStr, humX, ((time_yoffset + 10) + oled.fontHeight() + 5));
-    oled.display();
-    firstRun++;
-    lastTemperatureF = temperatureF;
-    lastHumidity = humidity;
-    Serial.println("First Run Complete"); // idk why tf this prints so many times lmao
-  }
-  if (minutes != lastMinutes) {
-    int newHours = timeClient.getHours();
-    int newMinutes = timeClient.getMinutes();
-    lastMinutes = newMinutes;
-    char newTimeStr[12];
-    if (newHours == 12) {
-      sprintf(newTimeStr, "%02d:%02d PM", newHours, newMinutes);
-    }else if (newHours == 0) {
-      sprintf(newTimeStr, "%02d:%02d AM", (newHours + 12), newMinutes);
-    }else {
-      if (newHours < 12) {
-        sprintf(newTimeStr, "%02d:%02d AM", newHours, newMinutes);
-      }else {
-        sprintf(newTimeStr, "%02d:%02d PM", (newHours - 12), newMinutes);
-      }
-    }
-    oled.fillRect(0, 5, oled.width(), oled.fontHeight());
-    oled.drawString(newTimeStr, timeX, 5);
-    oled.display();
-    Serial.println("Updated Time");
-  }
-  if (!isnan(humidity) && !isnan(temperatureF)) {
-    if (fabs(correctedTemp - lastTemperatureF) > 0.5) { // this totally didn't work like i meant it to, it still reads the dht each loop. gonna have to refactor this with some new logic
-      lastTemperatureF = correctedTemp;
-      oled.fillRect(0, (time_yoffset + 10), oled.width(), oled.fontHeight());
-      oled.drawString(tempStr, tempX, (time_yoffset + 10));
-      oled.display();
-      Serial.println("Updated Temp");
-    }
-    if (fabs(humidity - lastHumidity) > 1.0) { // also doesn't work like i though lolol
-      lastHumidity = humidity;
-      oled.fillRect(0, ((time_yoffset + 10) + (oled.fontHeight() + 5)), oled.width(), oled.fontHeight());
-      oled.drawString(humidityStr, humX, ((time_yoffset + 10) + oled.fontHeight() + 5));
-      oled.display();
-      Serial.println("Updated Humidity");
-    }
-  }
- }
+        static unsigned long last = 0;
+        unsigned long now = millis();
+        if (now - last >= 15000) { // poll DHT every 15 seconds
+                last = now;
+                dhtloop();
+        }
+        timeloop();
+        delay(20);
+}
