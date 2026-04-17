@@ -49,7 +49,7 @@ void timeloop() {
                 return;
         }
         int hours = t.tm_hour;
-        static int minutes;
+        static int minutes = -1;
         bool isPM = hours >= 12;
         int displayHour = hours % 12;
         if (displayHour == 0) {
