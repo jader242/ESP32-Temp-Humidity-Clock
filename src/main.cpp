@@ -41,10 +41,9 @@ void dhtloop() {
 }
 
 void timeloop() {
-        static bool firstRun = true;
         struct tm t;
         if (!getLocalTime(&t)) {
-                oled.drawString("No time", 5, (oled.textWidth("No time")));
+                oled.drawString("No time", ((oled.width() / 2) - (oled.textWidth("No time") / 2)), 5);
                 oled.display();
                 return;
         }
@@ -55,7 +54,7 @@ void timeloop() {
         if (displayHour == 0) {
                 displayHour = 12;
         }
-        if (firstRun || (minutes != t.tm_min)) {
+        if (minutes != t.tm_min) {
                 minutes = t.tm_min;
                 char timeStr[12];
                 snprintf(timeStr, sizeof(timeStr), "%02d:%02d %s", displayHour, minutes, isPM ? "PM" : "AM");
@@ -64,9 +63,6 @@ void timeloop() {
                 oled.drawString(timeStr, centerX, 5);
                 oled.display();
                 Serial.println("Updated time");
-                if (firstRun) {
-                        firstRun = false;
-                }
         }
 }
 
