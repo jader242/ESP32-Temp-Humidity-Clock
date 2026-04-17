@@ -24,18 +24,16 @@ void dhtloop() {
         if (!isnan(humidity) && !isnan(tempF)) {
                 snprintf(tempStr, sizeof(tempStr), "%.1f F", correctedTemp);
                 snprintf(humStr, sizeof(humStr), "%.0f%%", humidity);
-                oled.fillRect(0, 21, oled.width(), 43); // 21 comes from time text starting at a y pos of 5, plus 16 pixels for font size - 43 is the remainder of the screen (64-21)
+                oled.fillRect(0, 21, oled.width(), 43); // 21 comes from time text starting at a y pos of 5, plus 16 pixels for font size, 43 is the remainder of the screen (64-21)
                 oled.drawString(tempStr, ((oled.width() - oled.textWidth(tempStr)) / 2), (oled.fontHeight() + 10));
                 oled.drawString(humStr, ((oled.width() - oled.textWidth(humStr)) / 2), ((oled.fontHeight() + 10) + oled.fontHeight() + 5));
-                oled.display();
                 Serial.println("Updated temp/humidity");
         }else {
                 snprintf(tempStr, sizeof(tempStr), "Error");
                 snprintf(humStr, sizeof(humStr), "Error");
-                oled.fillRect(0, 21, oled.width(), 43); // same number reasoning as above
+                oled.fillRect(0, 21, oled.width(), 43); // same number reasoning as above, we love magic numbers
                 oled.drawString(tempStr, ((oled.width() - oled.textWidth(tempStr)) / 2), (oled.fontHeight() + 10));
                 oled.drawString(humStr, ((oled.width() - oled.textWidth(humStr)) / 2), ((oled.fontHeight() + 10) + oled.fontHeight() + 5));
-                oled.display();
                 Serial.println("DHT11 read error");
         }
 }
@@ -43,8 +41,8 @@ void dhtloop() {
 void timeloop() {
         struct tm t;
         if (!getLocalTime(&t)) {
+                oled.fillRect(0, 5, oled.width(), oled.fontHeight());
                 oled.drawString("No time", ((oled.width() / 2) - (oled.textWidth("No time") / 2)), 5);
-                oled.display();
                 return;
         }
         int hours = t.tm_hour;
@@ -61,26 +59,25 @@ void timeloop() {
                 int centerX = ((oled.width() / 2) - (oled.textWidth(timeStr) / 2));
                 oled.fillRect(0, 5, oled.width(), oled.fontHeight());
                 oled.drawString(timeStr, centerX, 5);
-                oled.display();
                 Serial.println("Updated time");
         }
 }
 
 void setup() {
+        oled.init();
         Serial.begin(115200);
         delay(1000);
         WiFi.begin(ssid, password);
         dht.begin();
         Serial.println("DHT11 initialized");
         Serial.println("Connecting to WiFi");
-        oled.setTextSize(2);
         while (WiFi.status() != WL_CONNECTED) {
                 delay(250);
                 Serial.print("...");
         }
         Serial.println("Connected!");
         configTime(tzOffset * 3600, 0, "pool.ntp.org", "time.nist.gov");
-        oled.init();
+        oled.setTextSize(2);
         oled.setRotation(1);
         oled.fillScreen(0);
 }
@@ -94,4 +91,5 @@ void loop() {
         }
         timeloop();
         delay(20);
+        oled.display();
 }
